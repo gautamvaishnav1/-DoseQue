@@ -38,4 +38,15 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Indexes for the two read patterns the API serves:
+// 1. Default list:  find().sort({ createdAt: -1 }).skip().limit()
+//    -> without this Mongo does a full collection scan (COLLSCAN) + in-memory
+//       sort on every request; with it, Mongo walks the index in order and
+//       stops as soon as it has skip+limit rows.
+// 2. Status filter: find({ status }).sort({ createdAt: -1 }) — equality on
+//    status first, then the sort order, so both filtering and sorting come
+//    from the same index (also serves countDocuments for the same filter).
+taskSchema.index({ createdAt: -1 });
+taskSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Task', taskSchema);

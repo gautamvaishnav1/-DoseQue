@@ -62,9 +62,19 @@ async function getTasks(req, res, next) {
     const skip = (page - 1) * limit;
 
     // Run both queries at the same time instead of one after the other.
+    // Counting strategy:
+    // - status filter: countDocuments uses the { status, createdAt } index
+    //   (index-only COUNT_SCAN) and stays exact for the filtered set.
+    // - no filter: estimatedDocumentCount reads MongoDB's maintained document
+    //   count (O(1), ~2ms) instead of countDocuments({}) which scans the whole
+    //   collection (COLLSCAN: ~40ms at 100k docs and it grows with the table).
+    const countPromise = status
+      ? Task.countDocuments(filter)
+      : Task.estimatedDocumentCount();
+
     const [tasks, totalTasks] = await Promise.all([
       Task.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      Task.countDocuments(filter),
+      countPromise,
     ]);
 
     const response = {

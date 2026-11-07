@@ -223,7 +223,14 @@ Example: `GET /api/tasks?page=2&limit=5&status=In%20Progress`
 }
 ```
 
-Sorted **newest first** (`createdAt` descending). `skip = (page - 1) * limit` + `limit`, with `countDocuments` on the same filter.
+Sorted **newest first** (`createdAt` descending). `skip = (page - 1) * limit` + `limit`. The total comes from `countDocuments` when a status filter is applied (exact, index-covered) and from `estimatedDocumentCount` (O(1)) for the unfiltered list, so the count never becomes the slow part of the response.
+
+**Indexes** (defined in `backend/src/models/task.js`, built automatically by Mongoose on startup):
+
+| Index | Serves |
+|-------|--------|
+| `{ createdAt: -1 }` | default list sort (newest first) — turns a full collection scan + in-memory sort into an index walk that stops after `skip + limit` rows |
+| `{ status: 1, createdAt: -1 }` | filtered list — equality on `status` plus the sort order from one index; also makes the filtered `countDocuments` an index-only `COUNT_SCAN` |
 
 ### `GET /api/tasks/:id` — one task
 
